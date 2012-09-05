@@ -64,14 +64,20 @@ class GenerateXsd extends Console\Command\Command
 			throw new \RuntimeException(__CLASS__." requires at least one ns-map (for {$destinationNs} namespace).");
 		}
 		
-		$files = array();
+		$output->writeln("Target namespace: <info>$destinationNs</info>");
 		
+		$files = array();
 		$nsMap = $input->getOption('ns-map');
 		foreach ($nsMap as $value){
 			list($phpNs, $dir, $xmlNs) = explode(":",$value, 3);
 			$dir = rtrim($dir,"\\//");
 			TypeMapper::addNamespace(trim(strtr($phpNs, '.','\\'),"\\"), $xmlNs);
 			$files = array_merge($files, glob("$dir/*.{$ext}"));
+			
+			$output->writeln("\tDIR: <info>$dir</info>");
+			$output->writeln("\tPHP: <comment>$phpNs</comment>");
+			$output->writeln("\tXML: <comment>$xmlNs</comment>\n");
+			
 		}
 					
 		$dom = new \DOMDocument('1.0', 'UTF-8');
@@ -83,9 +89,10 @@ class GenerateXsd extends Console\Command\Command
 			$newnode = $dom->importNode($mapping->documentElement, true); 
 			$root->appendChild($newnode);
 			
+			
 		}
 
-		$this->handleAllowMap($input->getOption('allow-map'), $dom);
+		$this->handleAllowMap($input->getOption('allow-map'), $dom, $output);
 			
 			
 		$xsd = new \DOMDocument('1.0', 'UTF-8');
@@ -104,13 +111,16 @@ class GenerateXsd extends Console\Command\Command
 
 		$ret = $newDom->save($destination);
 		
+		$output->writeln("Writing schema <info>$destination</info>");
+		
 		if($ret>0){
 			return 0;
 		}else{
 			return 1;
 		}
     }
-    protected function handleAllowMap($allowMap, $dom) {
+    
+    protected function handleAllowMap($allowMap, $dom, $output) {
     	$xpDom = new \DOMXPath($dom);
     	$xpDom->registerNamespace("d", "http://doctrine-project.org/schemas/orm/doctrine-mapping");
     	
