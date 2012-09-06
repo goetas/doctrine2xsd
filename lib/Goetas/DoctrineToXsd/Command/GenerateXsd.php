@@ -3,6 +3,8 @@
 
 namespace Goetas\DoctrineToXsd\Command;
 
+use Goetas\DoctrineToXsd\Convert\ConvertToXsd;
+
 use Goetas\DoctrineToXsd\Mapper\TypeMapper;
 
 use Symfony\Component\Console\Input\InputArgument,
@@ -50,11 +52,14 @@ class GenerateXsd extends Console\Command\Command
      * @see Console\Command\Command
      */
     protected function execute(Console\Input\InputInterface $input, Console\Output\OutputInterface $output)
-    {
+    {    	
     	$ext = $input->getOption('extension');
-    	$destinationNs = $input->getArgument('target-ns');
     	
-		$destination = $input->getArgument('destination');
+    	$destinationNs = $input->getArgument('target-ns');
+    	$destination = $input->getArgument('destination');
+    	
+    	$allowMap = $input->getOption('allow-map');
+		
 		if(is_dir($destination)){
 			throw new \RuntimeException("Destination could not be a directory.");
 		}
@@ -64,152 +69,34 @@ class GenerateXsd extends Console\Command\Command
 			throw new \RuntimeException(__CLASS__." requires at least one ns-map (for {$destinationNs} namespace).");
 		}
 		
+		$converter = new ConvertToXsd();
+				
 		$output->writeln("Target namespace: <info>$destinationNs</info>");
 		
 		$files = array();
-		$nsMap = $input->getOption('ns-map');
-		foreach ($nsMap as $value){
+		foreach ($nsMap as  $k => $value){
 			list($phpNs, $dir, $xmlNs) = explode(":",$value, 3);
+			
 			$dir = rtrim($dir,"\\//");
-			TypeMapper::addNamespace(trim(strtr($phpNs, '.','\\'),"\\"), $xmlNs);
-			$files = array_merge($files, glob("$dir/*.{$ext}"));
+			$phpNs = trim(strtr($phpNs, '.','\\'),"\\");
+			
+			$nsMap[$k]=array(
+				"phpNs"=>$phpNs,
+				"dir"=>$dir,
+				"xmlNs"=>$xmlNs,
+			);
 			
 			$output->writeln("\tDIR: <info>$dir</info>");
 			$output->writeln("\tPHP: <comment>$phpNs</comment>");
 			$output->writeln("\tXML: <comment>$xmlNs</comment>\n");
 			
 		}
-					
-		$dom = new \DOMDocument('1.0', 'UTF-8');
-		$root = $dom->createElement('root');
-		$dom->appendChild($root);
-		foreach ($files as $file){
-			$mapping = new \DOMDocument('1.0', 'UTF-8');
-			$mapping->load($file);
-			$newnode = $dom->importNode($mapping->documentElement, true); 
-			$root->appendChild($newnode);
-			
-			
-		}
-
-		$this->handleAllowMap($input->getOption('allow-map'), $dom, $output);
-			
-			
-		$xsd = new \DOMDocument('1.0', 'UTF-8');
-		$xsd->load(__DIR__.'/../Resources/xsd/convert.xsl');
+		$ret = $converter->convert($destination, $destinationNs, $nsMap, $allowMap);
 		
-		$processor = new \XSLTProcessor();
-		$processor->registerPHPFunctions();
-		$processor->setParameter('','targetNs', $destinationNs);
-				
-		$processor->importStylesheet($xsd);
-		
-		$newDom = $processor->transformToDoc($dom);
-
-
-		$this->fixXsd($newDom, $destinationNs);
-
-		$ret = $newDom->save($destination);
-		
-		$output->writeln("Writing schema <info>$destination</info>");
-		
-		if($ret>0){
+		if($ret){
+			$output->writeln("Writing schema <info>$destination</info>");
 			return 0;
-		}else{
-			return 1;
 		}
-    }
-    
-    protected function handleAllowMap($allowMap, $dom, $output) {
-    	$xpDom = new \DOMXPath($dom);
-    	$xpDom->registerNamespace("d", "http://doctrine-project.org/schemas/orm/doctrine-mapping");
-    	
-		foreach ($allowMap as $allowFile){
-			
-			if(!is_file($allowFile)){
-				throw new \RuntimeException("Can't load allow file '{$allowFile}'");
-			}
-			
-			$allowDom = new \DOMDocument('1.0', 'UTF-8');
-			$allowDom->load($allowFile);
-			
-			$allowDom = new \DOMXPath($allowDom);
-			$allowDom->registerNamespace("a", "http://www.goetas.com/doctrine2xsd/allow");
-			
-			
-			foreach ($allowDom->query("/a:allow-map/a:entity") as $entityRule){
-				$entityAllow = !($entityRule->getAttribute("allow")=="false");
-				$entityName = $entityRule->getAttribute("name");
-				
-				$filedAllows = array();
-				foreach ($allowDom->query("a:field", $entityRule) as $fieldRule){
-					$filedAllows[$fieldRule->getAttribute("name")]=!($fieldRule->getAttribute("allow")=="false");
-				}
-							
-				
-				
-				$res = $xpDom->query("//d:entity[@name='{$entityName}']/*[local-name()='field' or contains(local-name(),'-to-')]");
-				$nodes = array();
-				foreach ($res as $node){
-					$nodes[]=$node;
-				}
-				
-				foreach ($nodes as $entityField){
-					$nodeName = $entityField->hasAttribute("name")?$entityField->getAttribute("name"):$entityField->getAttribute("field");
-					
-					
-					$fieldAllow = $entityAllow;
-					
-					if(isset($filedAllows[$nodeName])){
-						$fieldAllow = $filedAllows[$nodeName];
-					}
-					
-					if(!$fieldAllow){						
-						$entityField->parentNode->removeChild($entityField);
-					}
-				}
-				
-				
-			}
-			
-			
-		}
-    }
-    protected function fixXsd(\DOMDocument $newDom, $destinationNs) {
-    	
-    	
-    	$xp = new \DOMXPath($newDom);
-		$xp->registerNamespace("xsd", "http://www.w3.org/2001/XMLSchema");
-		
-		
-		$nodes = array();
-		foreach ($xp->query("//xsd:sequence[count(*)=0]") as $node){
-			$nodes[]=$node;
-		}
-		
-		foreach ($nodes as $node) {
-			$node->parentNode->removeChild($node);
-		}
-		
-		$types = array();
-		$nodes = array();
-		foreach ($xp->query("//xsd:schema/xsd:complexType[contains(@name,'ArrayOf')]") as $node){
-			$nodes[]=$node;
-		}
-		foreach ($nodes as $node) {
-			$type = $node->getAttribute("name");
-			if (!isset($types[$type])){
-				$types[$type] = true;
-			}else{
-				$node->parentNode->removeChild($node);
-			}
-		}
-		$newDom->formatOutput = true;
-		$newDom->preserveWhiteSpace = false;
-		
-		$newDom->documentElement->setAttribute("xmlns", $destinationNs);
-		foreach (TypeMapper::getAllPrefixes() as $prefix => $ns){
-			$newDom->documentElement->setAttribute("xmlns:$prefix", $ns);
-		}
+		return 1;
     }
 }

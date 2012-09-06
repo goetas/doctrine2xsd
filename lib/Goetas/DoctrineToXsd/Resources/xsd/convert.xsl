@@ -4,9 +4,11 @@
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
     xmlns:d="http://doctrine-project.org/schemas/orm/doctrine-mapping"
     xmlns:php="http://php.net/xsl"
+    exclude-result-prefixes="php d xsl"
     >
-    <xsl:param name="targetNs"></xsl:param>
     
+    <xsl:param name="targetNs"></xsl:param>
+
 	<xsl:template match="/">
 		<xsl:apply-templates/>
 	</xsl:template>
@@ -18,17 +20,17 @@
 	<xsl:template match="root">
         <xsd:schema targetNamespace="{$targetNs}" elementFormDefault="qualified">
              <xsl:apply-templates select="d:*"/> 
-                      
-
-            <xsl:for-each select="//d:doctrine-mapping/d:entity/d:one-to-many|//d:doctrine-mapping/d:entity/d:many-to-many">
-                <xsl:if test="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTargetNsForType', string(@target-entity)) = string($targetNs)">
-                    <xsl:apply-templates select="." mode="array"/>
-                </xsl:if>
-            </xsl:for-each>
-            
+                     
+            <xsl:apply-templates select="d:*" mode="array"/>
+                            
             <xsd:complexType name="ArrayOfInt">
                 <xsd:sequence>
                     <xsd:element name="int" type="xsd:integer" maxOccurs="unbounded" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="ArrayOfShort">
+                <xsd:sequence>
+                    <xsd:element name="shirt" type="xsd:short" maxOccurs="unbounded" minOccurs="0"/>
                 </xsd:sequence>
             </xsd:complexType>
             <xsd:complexType name="ArrayOfString">
@@ -40,10 +42,16 @@
     </xsl:template>
     
     <xsl:template match="d:doctrine-mapping">
-            
        <xsl:for-each select="d:entity">            
              <xsl:if test="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTargetNsForType', string(@name)) = string($targetNs)">
                  <xsl:apply-templates select="."/>
+             </xsl:if>
+         </xsl:for-each>
+    </xsl:template>
+     <xsl:template match="d:doctrine-mapping" mode="array">
+       <xsl:for-each select="d:entity">            
+             <xsl:if test="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTargetNsForType', string(@name)) = string($targetNs)">
+                 <xsl:apply-templates select="." mode="array"/>
              </xsl:if>
          </xsl:for-each>
     </xsl:template>
@@ -54,8 +62,6 @@
                 <xsl:value-of select="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTypeName', string(@name), string($targetNs))"></xsl:value-of>
             </xsl:attribute>
             
-            
-
 	        <xsd:sequence>
 	            <xsl:apply-templates select="d:field"/>
 	            
@@ -108,7 +114,21 @@
             </xsd:element>
         </xsl:if>
      </xsl:template>
-     
+     <xsl:template match="d:entity" mode="array">
+         <xsd:complexType>
+            <xsl:attribute name="name">
+                <xsl:text>ArrayOf</xsl:text>
+                <xsl:value-of select="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTypeName', string(@name), string($targetNs))"></xsl:value-of>
+            </xsl:attribute>
+            <xsd:sequence>
+                <xsd:element name="{php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTypeName', string(@name), string($targetNs))}" minOccurs="0" maxOccurs="unbounded">
+                    <xsl:attribute name="type">
+                       <xsl:value-of select="php:function('Goetas\DoctrineToXsd\Mapper\TypeMapper::getTypeName', string(@name), string($targetNs))"></xsl:value-of>
+                    </xsl:attribute>
+                </xsd:element>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsl:template>
     <xsl:template match="d:one-to-many|d:many-to-many" mode="array">
         <xsd:complexType>
             <xsl:attribute name="name">

@@ -70,7 +70,7 @@ class TypeMapper
 		}
 		return self::$namespaces[$phpNs];
 	}
-	public function getAllPrefixes() {
+	public static function getAllPrefixes() {
 		$cnt = 0;
 		$nss = array();
 		foreach (self::$namespaces as  $value) {
