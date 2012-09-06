@@ -1,0 +1,24 @@
+{
+    "name": "goetas/doctrine2xsd",
+    "type": "library",
+    "description": "Convert Tool form Doctrine2 XML mapping to XSD XML Schema ",
+    "keywords": ["xml", "xsd", "doctrine", "xmlschmema"],
+    "homepage": "https://github.com/goetas/doctrine2xsd",
+    "license": "LGPL",
+    "authors": [
+        {
+            "name": "Asmir Mustafic",
+            "email": "goetas@lignano.it"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.2",
+        "symfony/Console": "2.*"
+        "symfony/ClassLoader": "2.*"
+    },
+    "autoload": {
+        "psr-0": { "Goetas\\DoctrineToXsd": "lib/" }
+    },
+    "target-dir": "Goetas/DoctrineToXsd",
+    "minimum-stability": "dev"
+}
