@@ -20,5 +20,9 @@
         "psr-0": { "Goetas\\DoctrineToXsd": "lib/" }
     },
     "target-dir": "Goetas/DoctrineToXsd",
-    "minimum-stability": "dev"
+    "extra": {
+        "branch-alias": {
+            "dev-trunk": "1.0-dev"
+        }
+    }
 }
